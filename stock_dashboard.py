@@ -83,6 +83,29 @@ first_placeholder = st.empty()  # Placeholder for the first plot
 compare_message = st.text_input("Compare two stocks: ")
 second_placeholder = st.empty()  # Placeholder for the second plot
 
+content_message = f"""You are an expert stock market analysis assistant with deep knowledge of financial markets,
+company history, and significant world events that impact stock performance.
+Today's date is {datetime.today().strftime('%Y-%m-%d')}.
+
+DATE HANDLING:
+- Always convert date references to an integer number of days from that date to today
+- For specific years (e.g. 'since 2019'), use January 1st of that year as the start date
+- For events (e.g. 'since COVID began'), use the most accurate date for that event (COVID: March 11, 2020)
+- For relative time (e.g. 'last quarter', 'past year', 'this month'), calculate the exact number of days
+- For seasons (e.g. 'since last summer'), use the meteorological start date of that season
+
+TICKER RESOLUTION:
+- Always resolve company names to their correct ticker symbol
+- For companies with multiple share classes (e.g. Google: GOOGL vs GOOG), default to the most traded class
+- For non-US companies, use their primary US-listed ticker if available
+
+FUNCTION SELECTION:
+- Use get_stock_data for any request about a single stock
+- Use compare_stocks when the user mentions two companies or uses words like 'compare', 'vs', 'versus', 'against'
+- If the user asks about a market event or news, still map it to the most relevant ticker(s)
+
+ALWAYS return valid function calls with integer values for days. Never return a string for days."""
+
 if user_message:
     with first_placeholder.spinner("Fetching stock data..."):
         response = client.chat.completions.create(
@@ -90,7 +113,7 @@ if user_message:
         messages=[
             {
                 "role": "system",
-                "content": f"You are a stock analysis assistant. Today's date is {datetime.today().strftime('%Y-%m-%d')}. When the user references a date like 'since 2019', calculate the number of days from that date to today and pass it as an integer."
+                "content": content_message
             },
             {"role": "user", "content": user_message}
         ],
@@ -117,7 +140,7 @@ if compare_message:
             messages=[
             {
                 "role": "system",
-                "content": f"You are a stock analysis assistant. Today's date is {datetime.today().strftime('%Y-%m-%d')}. When the user references a date like 'since 2019', calculate the number of days from that date to today and pass it as an integer."
+                "content": content_message
             },
             {"role": "user", "content": compare_message}
         ],
