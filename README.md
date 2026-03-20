@@ -1,8 +1,8 @@
 # Stock Data Dashboard
 
 ## Overview
-An AI-powered stock analysis dashboard built in Python. Users can query stock data 
-in plain English and the app uses an LLM to automatically determine the right API 
+An AI-powered stock analysis dashboard built in Python. Users can query stock data
+in plain English and the app uses an LLM to automatically determine the right API
 calls, fetch live market data, and visualize it interactively.
 
 ## Features
@@ -39,3 +39,4 @@ streamlit run dashboard.py
 - "Compare Home Depot and Lowe's since the beginning of 2026"
 - "Compare Amazon and Walmart's performance since COVID-19 lockdowns began"
 - "Compare McDonalds and Burger King since the beginning of Q2"
+- "Should I buy Apple shares right now?"

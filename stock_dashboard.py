@@ -1,3 +1,16 @@
+"""
+StockBoard - AI-Powered Stock Analysis Dashboard
+Built with Streamlit, Plotly, yfinance, and Groq LLM.
+
+Features:
+    - Live stock news feed
+    - Interactive portfolio tracker with CSV import/export
+    - AI-powered natural language stock queries
+    - Candlestick and comparison charts
+    - AI investment recommendations
+"""
+
+# API and library imports
 from groq import Groq
 from datetime import datetime, timedelta
 import yfinance as yf
@@ -8,9 +21,16 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 import os
+import pandas as pd
+import feedparser
+from urllib.parse import quote
+
+# Custom utility functions
+from utilities import *
 
 load_dotenv()
 
+# LLM setup
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 tools = [
@@ -63,108 +83,275 @@ tools = [
                 "required": ["ticker1", "ticker2", "days"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_recommendation",
+            "description": "Provide a stock recommendation based on recent performance.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {"type": "string", "description": "Stock ticker symbol"},
+                    "action": {"type": "string", "enum": ["Buy", "Hold", "Sell"]},
+                    "confidence": {"type": "string", "enum": ["High", "Medium", "Low"]},
+                    "reasoning": {"type": "string", "description": "Brief explanation for action choice"},
+                    "risk": {"type": "string", "enum": ["Low", "Medium", "High"]}
+                },
+                "required": ["ticker", "action", "confidence", "reasoning", "risk"]
+            }
+        }
     }
 ]
 
+st.set_page_config(layout="wide")
+st.markdown("<h1 style='text-align: center;'>StockBoard</h1>", unsafe_allow_html=True) # Title
+st.divider()
 
-def get_stock_data(ticker: str, days: int, company_name: str = None):
-    end = datetime.today()
-    start = end - timedelta(days=days)
+if "portfolio" not in st.session_state:
+    if os.path.exists("portfolio.csv"):
+        st.session_state.portfolio = pd.read_csv("portfolio.csv")
+    else:
+        st.session_state.portfolio = pd.DataFrame({
+            "Ticker": ["AAPL", "GOOGL", "AMZN"],
+            "Shares": [10, 2, 5],
+            "Purchase Price": [150.0, 2800.0, 3500.0]
+        })
 
-    data = yf.download(ticker, start=start, end=end)
-    data = data[["Close", "Open", "High", "Low"]].reset_index()
-    data.columns = ["Date", "Close", "Open", "High", "Low"]
+main_col1, main_col2, main_col3 = st.columns([2, 4, 4])
 
-    return data
+with main_col1:
+    # News Feed --------------------------------------------------------------------------------------------------
+    st.subheader("Recent Stock News")
+    query = "Recent stock news"
+    url = f"https://news.google.com/rss/search?q={quote(query)}&hl=en-US&gl=US&ceid=US:en"
+    feed = feedparser.parse(url)
 
-st.title("Stock Data Analysis with LLMs")
-user_message = st.text_input("Ask a question about a stock and its performance: ")
-first_placeholder = st.empty()  # Placeholder for the first plot
-compare_message = st.text_input("Compare two stocks: ")
-second_placeholder = st.empty()  # Placeholder for the second plot
+    for entry in feed.entries[:10]:
+        st.markdown(f"[{entry.title}]({entry.link})")
+        st.caption(entry.published)
+        st.divider()
 
-content_message = f"""You are an expert stock market analysis assistant with deep knowledge of financial markets,
-company history, and significant world events that impact stock performance.
-Today's date is {datetime.today().strftime('%Y-%m-%d')}.
+with main_col2:
+    # Portfolio Tracker ------------------------------------------------------------------------------------------
+    st.subheader("Portfolio Tracker")
 
-DATE HANDLING:
-- Always convert date references to an integer number of days from that date to today
-- For specific years (e.g. 'since 2019'), use January 1st of that year as the start date
-- For events (e.g. 'since COVID began'), use the most accurate date for that event (COVID: March 11, 2020)
-- For relative time (e.g. 'last quarter', 'past year', 'this month'), calculate the exact number of days
-- For seasons (e.g. 'since last summer'), use the meteorological start date of that season
+    st.caption("Ticker Lookup")
+    lookup_col1, lookup_col2 = st.columns([3, 1])
 
-TICKER RESOLUTION:
-- Always resolve company names to their correct ticker symbol
-- For companies with multiple share classes (e.g. Google: GOOGL vs GOOG), default to the most traded class
-- For non-US companies, use their primary US-listed ticker if available
+    with lookup_col1:
+        company_name = st.text_input("Enter a company name:")
 
-FUNCTION SELECTION:
-- Use get_stock_data for any request about a single stock
-- Use compare_stocks when the user mentions two companies or uses words like 'compare', 'vs', 'versus', 'against'
-- If the user asks about a market event or news, still map it to the most relevant ticker(s)
+    with lookup_col2:
+        if st.button("Lookup Ticker"):
+            if company_name:
+                ticker = lookup_ticker(company_name)
+                if ticker:
+                    st.success(f"Ticker: {ticker}")
+                else:
+                    st.error("Company not found.")
 
-ALWAYS return valid function calls with integer values for days. Never return a string for days."""
+    uploaded_file = st.file_uploader("Import Portfolio CSV", type="csv")
+    if uploaded_file is not None:
+        st.session_state.portfolio = pd.read_csv(uploaded_file)
 
-if user_message:
-    with first_placeholder.spinner("Fetching stock data..."):
-        response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {
-                "role": "system",
-                "content": content_message
-            },
-            {"role": "user", "content": user_message}
-        ],
-        tools=tools,
-        tool_choice="auto"
+    portfolio = st.data_editor(
+        st.session_state.portfolio,
+        num_rows="dynamic",
+        key="portfolio_editor"
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        csv = portfolio.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Export Portfolio as CSV",
+            data=csv,
+            file_name='portfolio.csv',
+            mime='text/csv'
         )
 
-        tool_call = response.choices[0].message.tool_calls[0]
-        function_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
-        arguments["days"] = int(arguments["days"])  # Ensure days is an integer
+    analyze_button = None
 
+    with col2:
+        analyze_button = st.button("Analyze Portfolio")
 
-        if function_name == "get_stock_data":
-            stock_data = get_stock_data(arguments["ticker"], arguments["days"], arguments.get("company_name"))
+    a_col1, a_col2 = st.columns(2)
 
-            fig = px.line(stock_data, x="Date", y=["Close", "Open"], title=f"{arguments['ticker']} Opening and Closing Price Over Time")
-            first_placeholder.plotly_chart(fig)
+    if analyze_button:
+        with a_col1:
+            analyze_portfolio(portfolio)
+        with a_col2:
+            chart_portfolio(portfolio)
 
-if compare_message:
-    with second_placeholder.spinner("Comparing stocks..."):
-        response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-            messages=[
-            {
-                "role": "system",
-                "content": content_message
-            },
-            {"role": "user", "content": compare_message}
-        ],
+with main_col3:
+    # LLM integration ------------------------------------------------------------------------------------------
+    st.subheader("LLM Stock Analysis")
 
-        tools=tools,
-        tool_choice="auto"
-        )
+    user_message = st.text_input("Ask a question about a stock and its performance: ")
+    first_placeholder = st.empty()  # Placeholder for the first plot
 
-        tool_call = response.choices[0].message.tool_calls[0]
-        function_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
-        arguments["days"] = int(arguments["days"])  # Ensure days is an integer
+    compare_message = st.text_input("Compare two stocks: ")
+    second_placeholder = st.empty()  # Placeholder for the second plot
 
-        if function_name == "compare_stocks":
-            stock_data1 = get_stock_data(arguments["ticker1"], arguments["days"])
-            stock_data2 = get_stock_data(arguments["ticker2"], arguments["days"])
+    advise_question = st.text_input("Ask a question for advice on future stock actions")
+    third_placeholder = st.empty()
 
-            fig = make_subplots(rows=1, cols=2, subplot_titles=(arguments["ticker1"], arguments["ticker2"]))
+    content_message = f"""You are an expert stock market analysis assistant with deep knowledge of financial markets,
+    company history, and significant world events that impact stock performance.
+    Today's date is {datetime.today().strftime('%Y-%m-%d')}.
 
-            fig.add_trace(go.Scatter(x=stock_data1["Date"], y=stock_data1["Close"], mode='lines', name='Close'), row=1, col=1)
-            fig.add_trace(go.Scatter(x=stock_data1["Date"], y=stock_data1["Open"], mode='lines', name='Open'), row=1, col=1)
+    DATE HANDLING:
+    - Always convert date references to an integer number of days from that date to today
+    - For specific years (e.g. 'since 2019'), use January 1st of that year as the start date
+    - For events (e.g. 'since COVID began'), use the most accurate date for that event (COVID: March 11, 2020)
+    - For relative time (e.g. 'last quarter', 'past year', 'this month'), calculate the exact number of days
+    - For seasons (e.g. 'since last summer'), use the meteorological start date of that season
+    - For business interactions (i.e. acquisitions, partnerships), use the date of the announcement or deal closure, whichever is more relevant
 
-            fig.add_trace(go.Scatter(x=stock_data2["Date"], y=stock_data2["Close"], mode='lines', name='Close'), row=1, col=2)
-            fig.add_trace(go.Scatter(x=stock_data2["Date"], y=stock_data2["Open"], mode='lines', name='Open'), row=1, col=2)
+    TICKER RESOLUTION:
+    - Always resolve company names to their correct ticker symbol
+    - For companies with multiple share classes (e.g. Google: GOOGL vs GOOG), default to the most traded class
+    - For non-US companies, use their primary US-listed ticker if available
 
-            fig.update_layout(title_text="Stock Performance Comparison", showlegend=False)
-            second_placeholder.plotly_chart(fig)
+    FUNCTION SELECTION:
+    - Use get_stock_data for any request about a single stock
+    - Use compare_stocks when the user mentions two companies or uses words like 'compare', 'vs', 'versus', 'against'
+    - use get_recommendation when the user is seeking advice for actions to take involving selling, buying, or holding shares of a stock
+    - If the user asks about a market event or news, still map it to the most relevant ticker(s)
+
+    ALWAYS return valid function calls with integer values for days. Never return a string for days."""
+
+    if user_message:
+        try:
+            with first_placeholder.spinner("Fetching stock data..."):
+                response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": content_message
+                    },
+                    {"role": "user", "content": user_message}
+                ],
+                tools=tools,
+                tool_choice="auto"
+                )
+
+                tool_call = response.choices[0].message.tool_calls[0]
+                function_name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+                arguments["days"] = int(arguments["days"])  # Ensure days is an integer
+
+                if function_name == "get_stock_data":
+                    stock_data = get_stock_data(arguments["ticker"], arguments["days"], arguments.get("company_name"))
+
+                    fig = go.Figure(data=[go.Candlestick(
+                        x=stock_data["Date"],
+                        open=stock_data["Open"],
+                        close=stock_data["Close"],
+                        high=stock_data["High"],
+                        low=stock_data["Low"]
+                    )])
+                    fig.update_layout(title=f"{arguments.get('company_name', arguments['ticker'])} Stock Performance Over Last {arguments['days']} Days")
+                    first_placeholder.plotly_chart(fig)
+        except Exception as e:
+            st.error("Something went wrong. Try rephrasing or resubmitting your request.")
+
+    if compare_message:
+        try:
+            with second_placeholder.spinner("Comparing stocks..."):
+                response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                    messages=[
+                    {
+                        "role": "system",
+                        "content": content_message
+                    },
+                    {"role": "user", "content": compare_message}
+                ],
+
+                tools=tools,
+                tool_choice="auto"
+                )
+
+                tool_call = response.choices[0].message.tool_calls[0]
+                function_name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+                arguments["days"] = int(arguments["days"])  # Ensure days is an integer
+
+            if function_name == "compare_stocks":
+                stock_data1 = get_stock_data(arguments["ticker1"], arguments["days"])
+                stock_data2 = get_stock_data(arguments["ticker2"], arguments["days"])
+
+                fig = make_subplots(rows=1, cols=2, subplot_titles=(arguments["ticker1"], arguments["ticker2"]))
+
+                fig.add_trace(go.Scatter(x=stock_data1["Date"], y=stock_data1["Close"], mode='lines', name='Close'), row=1, col=1)
+                fig.add_trace(go.Scatter(x=stock_data1["Date"], y=stock_data1["Open"], mode='lines', name='Open'), row=1, col=1)
+
+                fig.add_trace(go.Scatter(x=stock_data2["Date"], y=stock_data2["Close"], mode='lines', name='Close'), row=1, col=2)
+                fig.add_trace(go.Scatter(x=stock_data2["Date"], y=stock_data2["Open"], mode='lines', name='Open'), row=1, col=2)
+
+                fig.update_layout(title_text="Stock Performance Comparison", showlegend=False)
+                second_placeholder.plotly_chart(fig)
+        except Exception as e:
+            st.error("Something went wrong. Try rephrasing or resubmitting your request.")
+
+    if advise_question:
+        try:
+            with third_placeholder.spinner("Generating response"):
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                        messages=[
+                        {
+                            "role": "system",
+                            "content": content_message
+                        },
+                        {"role": "user", "content": advise_question}
+                    ],
+
+                tools=tools,
+                tool_choice="auto"
+                )
+
+                tool_call = response.choices[0].message.tool_calls[0]
+                function_name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+            if function_name == "get_recommendation":
+                st.write(arguments["ticker"])
+
+                # Action display
+                action = arguments["action"]
+                if action == "Buy":
+                    st.success(f"**Action: {action}**")
+                elif action == "Sell":
+                    st.error(f"**Action: {action}**")
+                elif action == "Hold":
+                    st.warning(f"**Action: {action}**")
+
+                # Confidence display
+                confidence = arguments["confidence"]
+                if confidence == "High":
+                    st.success(f"**Confidence: {confidence}**")
+                elif confidence == "Medium":
+                    st.warning(f"**Confidence: {confidence}**")
+                elif confidence == "Low":
+                    st.error(f"**Confidence: {confidence}**")
+
+                st.write(arguments["reasoning"])
+
+                # Risk display
+                risk = arguments["risk"]
+                if risk == "Low":
+                    st.success(f"**Risk: {risk}**")
+                elif risk == "Medium":
+                    st.warning(f"**Risk: {risk}**")
+                elif risk == "Low":
+                    st.error(f"**Risk: {risk}**")
+
+                st.caption("⚠️ This is not financial advice. Always consult a professional before making investment decisions.")
+        except Exception as e:
+            st.error("Something went wrong. Try rephrasing or resubmitting your request.")
+st.divider()
+st.caption("⚠️ This tool is for informational and educational purposes only and does not constitute financial advice. Stock recommendations generated by AI are not reliable indicators of future performance. Always consult a licensed financial advisor before making investment decisions. Market data provided by Yahoo Finance.")
