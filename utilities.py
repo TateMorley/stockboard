@@ -3,6 +3,7 @@ import streamlit as st
 import plotly.express as px
 import yfinance as yf
 from datetime import datetime, timedelta
+import time
 
 def get_stock_data(ticker: str, days: int, company_name: str = None):
     """
@@ -161,3 +162,29 @@ def chart_portfolio(portfolio):
 
     fig = px.line(portfolio_history, x="Date", y="Total", title="Total Portfolio Value Over Time")
     st.plotly_chart(fig)
+
+def llm_call_with_retry(client, messages, tools, max_retries=5):
+    """
+    Calls the Groq API repeatedly to avoid failure messages
+
+    Args:
+        messages: List of message dicts to send
+        tools: list of tool definitions
+        max_retries: number of chances to fails
+    Returns:
+        API response object, or None if they all fail
+    """
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model = "llama-3.3-70b-versatile",
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
+            )
+            return response
+        except Exception as e:
+            if attempt < max_retries - 1:   # If it fails, wait one second then call again
+                time.sleep(1)
+            else:                           # If it fails 5 times, give an error
+                raise e

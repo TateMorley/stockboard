@@ -186,6 +186,8 @@ with main_col2:
             mime='text/csv'
         )
 
+        st.caption("Data is not stored locally, make sure to export your data to save content across sessions")
+
     # Analyze section
     analyze_button = None
 
@@ -241,17 +243,14 @@ with main_col3:
     if user_message:
         try:
             with first_placeholder.spinner("Fetching stock data..."):
-                response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": content_message
-                    },
-                    {"role": "user", "content": user_message}
-                ],
+                response = llm_call_with_retry(
+                    client=client,
+                    messages=[
+                        {"role": "system", "content": content_message},
+                        {"role": "user", "content": user_message}
+                    ],
+
                 tools=tools,
-                tool_choice="auto"
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
@@ -277,18 +276,14 @@ with main_col3:
     if compare_message:
         try:
             with second_placeholder.spinner("Comparing stocks..."):
-                response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                response = llm_call_with_retry(
+                    client=client,
                     messages=[
-                    {
-                        "role": "system",
-                        "content": content_message
-                    },
-                    {"role": "user", "content": compare_message}
-                ],
+                        {"role": "system", "content": content_message},
+                        {"role": "user", "content": compare_message}
+                    ],
 
                 tools=tools,
-                tool_choice="auto"
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
@@ -316,18 +311,14 @@ with main_col3:
     if advise_question:
         try:
             with third_placeholder.spinner("Generating response"):
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                        messages=[
-                        {
-                            "role": "system",
-                            "content": content_message
-                        },
+                response = llm_call_with_retry(
+                    client=client,
+                    messages=[
+                        {"role": "system", "content": content_message},
                         {"role": "user", "content": advise_question}
                     ],
 
                 tools=tools,
-                tool_choice="auto"
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
