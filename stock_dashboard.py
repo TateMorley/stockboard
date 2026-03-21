@@ -96,7 +96,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_recommendation",
-            "description": "Provide a stock recommendation based on recent performance.",
+            "description": "Provide a stock recommendation based on recent performance. Responses are a complete sentence",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -186,7 +186,7 @@ with main_col2:
             mime='text/csv'
         )
 
-        st.caption("Data is not stored locally, make sure to export your data to save content across sessions")
+        st.caption("Data is not stored locally, make sure to export your data to save portfolio content across sessions")
 
     # Analyze section
     analyze_button = None
@@ -232,10 +232,14 @@ with main_col3:
     - For companies with multiple share classes (e.g. Google: GOOGL vs GOOG), default to the most traded class
     - For non-US companies, use their primary US-listed ticker if available
 
+    ADVICE STRUCTURE:
+    - When providing stock action response advice, the reason should be at least one complete sentence
+    - When providing stock action response advice, the reason should be at most two complete sentences
+
     FUNCTION SELECTION:
     - Use get_stock_data for any request about a single stock
     - Use compare_stocks when the user mentions two companies or uses words like 'compare', 'vs', 'versus', 'against'
-    - use get_recommendation when the user is seeking advice for actions to take involving selling, buying, or holding shares of a stock
+    - Use get_recommendation when the user is seeking advice for actions to take involving selling, buying, or holding shares of a stock.
     - If the user asks about a market event or news, still map it to the most relevant ticker(s)
 
     ALWAYS return valid function calls with integer values for days. Never return a string for days."""
@@ -249,8 +253,7 @@ with main_col3:
                         {"role": "system", "content": content_message},
                         {"role": "user", "content": user_message}
                     ],
-
-                tools=tools,
+                    tools=tools,
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
@@ -282,8 +285,7 @@ with main_col3:
                         {"role": "system", "content": content_message},
                         {"role": "user", "content": compare_message}
                     ],
-
-                tools=tools,
+                    tools=tools,
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
@@ -317,8 +319,7 @@ with main_col3:
                         {"role": "system", "content": content_message},
                         {"role": "user", "content": advise_question}
                     ],
-
-                tools=tools,
+                    tools=tools,
                 )
 
                 tool_call = response.choices[0].message.tool_calls[0]
