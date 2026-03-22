@@ -274,8 +274,8 @@ with main_col3:
                     fig.update_layout(title=f"{arguments.get('company_name', arguments['ticker'])} Stock Performance Over Last {arguments['days']} Days")
                     first_placeholder.plotly_chart(fig)
         except Exception as e:
-            st.error(f"Error: {str(e)}")
-            st.code(traceback.format_exc())
+            # st.error(f"Error: {str(e)}")
+            # st.code(traceback.format_exc())
             st.error("Something went wrong. Try rephrasing or resubmitting your request.")
 
     if compare_message:
