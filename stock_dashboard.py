@@ -225,7 +225,16 @@ with main_col3:
     - For events (e.g. 'since COVID began'), use the most accurate date for that event (COVID: March 11, 2020)
     - For relative time (e.g. 'last quarter', 'past year', 'this month'), calculate the exact number of days
     - For seasons (e.g. 'since last summer'), use the meteorological start date of that season
-    - For business interactions (i.e. acquisitions, partnerships), use the date of the announcement or deal closure, whichever is more relevant
+
+    EVENT HANDLING:
+    - When the user references a specific event like 'since the iPhone 16 release' or 'since Oracle bought TikTok',
+    use your knowledge to identify the approximate date of that event, then calculate the number of days
+    from that date to today and pass it as an integer.
+    Examples:
+    - 'since the iPhone 16 release' -> iPhone 16 released September 20, 2024 -> calculate days from 2024-09-20 to today
+    - 'since they bought TikTok' -> identify the acquisition date -> calculate days from that date to today
+    - 'past 4 months' -> 120 days
+    - 'since 2019' -> calculate days from 2019-01-01 to today
 
     TICKER RESOLUTION:
     - Always resolve company names to their correct ticker symbol
