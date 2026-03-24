@@ -34,10 +34,6 @@ Run the app with:
 streamlit run dashboard.py
 ```
 
-OR
-
-Visit https://stockboard2026.streamlit.app/
-
 ### Example Queries
 - "Show me Apple's performance over the past 3 months"
 - "Show me Nvidia's stock since they announced their 5000 series gpus"
